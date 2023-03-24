@@ -33,26 +33,18 @@ void TCPReceiver::segment_received(const TCPSegment &seg) {
     //string_view的成员函数即对外接口与 string 相类似，但只包含读取字符串内容的部分。
     //下一步是push_substring函数的使用
 
-    //得到index,checkpoint是最后一个重新组装的索引(是指绝对序号还是流索引呢)
-    const uint64_t index=unwrap(seg.header().seqno,isn,_reassembler.stream_out().bytes_written()+1)-1+(seg.header().syn);
-    //再来得到eof,eof是fin位中可以得到的,FIN可以携带数据
-    bool eof=false;
-    if(seg.header().fin==true)
-    {
-        eof=true;
-    }
-        
+    //得到index,checkpoint是最后一个重新组装的索引(是指绝对序号)
+    uint64_t index=unwrap(seg.header().seqno,isn,_reassembler.stream_out().bytes_written()+1)-1;
+    if(seg.header().syn)
+        index=0;
     //最后要得到data,不知道string_view型的接不接呀
-    string str=seg.payload().copy();
-    _reassembler.push_substring(str,index,eof);
+    _reassembler.push_substring(seg.payload().copy(),index,seg.header().fin);
 
 }
 
 optional<WrappingInt32> TCPReceiver::ackno() const { 
     if(!_syn)
         return nullopt;
-    // if(_reassembler.stream_out().bytes_written()==0)
-    //     return wrap(1,isn);
     size_t stream_index=_reassembler.stream_out().bytes_written();
     if(_reassembler.stream_out().input_ended())
         ++stream_index;
