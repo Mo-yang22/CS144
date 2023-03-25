@@ -6,8 +6,10 @@
 #include "tcp_segment.hh"
 #include "wrapping_integers.hh"
 
+#include <algorithm>
 #include <functional>
 #include <queue>
+
 
 //! \brief The "sender" part of a TCP implementation.
 
@@ -17,21 +19,40 @@
 //! segments if the retransmission timer expires.
 class TCPSender {
   private:
-    //! our initial sequence number, the number for our SYN.
-    WrappingInt32 _isn;
+   //! our initial sequence number, the number for our SYN.
+   WrappingInt32 _isn;
 
-    //! outbound queue of segments that the TCPSender wants sent
-    std::queue<TCPSegment> _segments_out{};
+   //! outbound queue of segments that the TCPSender wants sent
+   std::queue<TCPSegment> _segments_out{};
+   //! 等待返回接收成功的段
+   std::queue<TCPSegment> _segments_wait{};
 
-    //! retransmission timer for the connection
-    unsigned int _initial_retransmission_timeout;
+   //! retransmission timer for the connection
+   unsigned int initial_retransmission_timeout_;
+   //! RTO，重传等待时间
+   unsigned int retransmission_timeout_;
+   //! 重传次数
+   uint16_t consecutive_retransmissions_ = 0;
+   //! 重传计时器
+   size_t retransmissions_timer_ = 0;
+   //! 重传计时器是否启动
+   bool retransmissions_timer_running_ = false;
 
-    //! outgoing stream of bytes that have not yet been sent
-    ByteStream _stream;
+   //! outgoing stream of bytes that have not yet been sent
+   ByteStream _stream;
 
-    //! the (absolute) sequence number for the next byte to be sent
-    uint64_t _next_seqno{0};
+   //! the (absolute) sequence number for the next byte to be sent
+   uint64_t _next_seqno{0};
+   uint64_t _recv_seqno{0};
 
+   // 标记是否开始和结束
+   bool syn_ = false;
+   bool fin_ = false;
+
+   // 尚在发送中的数据大小
+   uint64_t bytes_in_flight_ = 0;
+   // 接收方的窗口大小
+   uint16_t receiver_window_size_ = 0;
   public:
     //! Initialize a TCPSender
     TCPSender(const size_t capacity = TCPConfig::DEFAULT_CAPACITY,
@@ -87,6 +108,7 @@ class TCPSender {
     //! \brief relative seqno for the next byte to be sent
     WrappingInt32 next_seqno() const { return wrap(_next_seqno, _isn); }
     //!@}
+    void send_tcp_segment(TCPSegment &s);
 };
 
 #endif  // SPONGE_LIBSPONGE_TCP_SENDER_HH
