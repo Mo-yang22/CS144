@@ -54,8 +54,11 @@ void TCPSender::fill_window() {
        size_t send_size =
            min(TCPConfig::MAX_PAYLOAD_SIZE, static_cast<size_t>(window_size - (_next_seqno - _recv_seqno)));
        tcp_segment.payload() = _stream.read(min(send_size, _stream.buffer_size()));
-       // 如果发送完了，则添加FIN标志
-       if (_stream.eof() && tcp_segment.length_in_sequence_space() < window_size) {
+        //如果发送完了，则添加FIN标志
+        //fin可以在包含负载的段中发送，但是如果窗口在添加负载之后已经满了，
+        //那么不能在包含负载的段中设置fin=true，也不能在本次fill_window()时单独发送fin=true 负载=0的段
+        //需要在下一次调用fill_window()时再发送这个发送fin=true 负载=0的段
+       if (_stream.eof() && _recv_seqno+window_size > _next_seqno+tcp_segment.length_in_sequence_space()) {
            tcp_segment.header().fin = true;
            fin_ = true;
        }
@@ -100,7 +103,7 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
        // 当前队列头的段还未发送成功
        if (abs_ackno <
            unwrap(tcp_segment.header().seqno, _isn, _next_seqno) + tcp_segment.length_in_sequence_space()) {
-           return;
+           break;
        }
        // 发送成功，要出队列，修改发送的数据大小
        _segments_wait.pop();
