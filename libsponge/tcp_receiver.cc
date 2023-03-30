@@ -37,7 +37,6 @@ void TCPReceiver::segment_received(const TCPSegment &seg) {
     uint64_t index=unwrap(seg.header().seqno,isn,_reassembler.stream_out().bytes_written()+1)-1;
     if(seg.header().syn)
         index=0;
-    //最后要得到data,不知道string_view型的接不接呀
     _reassembler.push_substring(seg.payload().copy(),index,seg.header().fin);
 
 }
